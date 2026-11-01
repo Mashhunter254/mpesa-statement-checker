@@ -1,0 +1,1622 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Check an M-Pesa statement against a list of names. Runs entirely in your browser.">
+<title>M-Pesa Statement Checker</title>
+<style>
+  :root{
+    --bg:#f2f7f3;
+    --bg-soft:#e8f1ea;
+    --card:#ffffff;
+    --text:#11211a;
+    --muted:#5c6f66;
+    --border:#d9e5dd;
+    --accent:#12a150;
+    --accent-strong:#0b7c3c;
+    --accent-soft:#e4f6ea;
+    --ok:#0b7c3c;      --ok-soft:#e4f6ea;
+    --warn:#9a6200;    --warn-soft:#fdf3df;
+    --danger:#b3261e;  --danger-soft:#fce9e7;
+    --info:#175cd3;    --info-soft:#e8f0fe;
+    --shadow:0 1px 2px rgba(16,40,28,.06),0 6px 20px rgba(16,40,28,.06);
+    --radius:14px;
+  }
+  html[data-theme="dark"]{
+    --bg:#08120d;
+    --bg-soft:#0c1a13;
+    --card:#0f1e17;
+    --text:#e7f2ea;
+    --muted:#9db3a6;
+    --border:#1f352a;
+    --accent:#3ddc84;
+    --accent-strong:#57e79a;
+    --accent-soft:#10301f;
+    --ok:#57e79a;      --ok-soft:#10301f;
+    --warn:#f0bd5e;    --warn-soft:#33260c;
+    --danger:#ff8a80;  --danger-soft:#3a1512;
+    --info:#8ab4ff;    --info-soft:#12213f;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-text-size-adjust:100%;
+  }
+  a{color:var(--accent-strong)}
+  header{
+    background:linear-gradient(135deg,var(--accent-strong),var(--accent));
+    color:#fff;
+    padding:18px 16px;
+  }
+  html[data-theme="dark"] header{background:linear-gradient(135deg,#0b3a22,#12a150);}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 16px}
+  .head-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:10px;min-width:0}
+  .logo{
+    width:34px;height:34px;border-radius:10px;flex:0 0 auto;
+    background:rgba(255,255,255,.18);
+    display:grid;place-items:center;font-weight:800;font-size:15px;letter-spacing:.5px;
+  }
+  h1{font-size:1.15rem;margin:0;font-weight:700;letter-spacing:.2px}
+  .sub{font-size:.85rem;opacity:.92;margin:6px 0 0}
+  main{padding:16px 0 64px}
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:16px;
+    margin:0 0 16px;
+  }
+  h2{font-size:1rem;margin:0 0 12px;font-weight:700}
+  h3{font-size:.92rem;margin:18px 0 8px;font-weight:700}
+  label{display:block;font-size:.86rem;font-weight:600;margin:0 0 6px}
+  .hint{font-size:.78rem;color:var(--muted);margin:6px 0 0}
+  input[type="text"],input[type="password"],input[type="date"],input[type="number"],textarea{
+    width:100%;
+    font:inherit;
+    color:var(--text);
+    background:var(--bg-soft);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 12px;
+  }
+  textarea{min-height:120px;resize:vertical;line-height:1.45}
+  input:focus-visible,textarea:focus-visible,button:focus-visible,.drop:focus-visible,
+  .mode-opt:focus-within,.suggest button:focus-visible{
+    outline:3px solid var(--accent);
+    outline-offset:2px;
+  }
+  button{
+    font:inherit;font-weight:600;cursor:pointer;
+    border-radius:10px;border:1px solid var(--border);
+    background:var(--card);color:var(--text);
+    padding:10px 14px;
+  }
+  button:disabled{opacity:.55;cursor:not-allowed}
+  .btn-primary{background:var(--accent-strong);border-color:var(--accent-strong);color:#fff}
+  .btn-primary:hover:not(:disabled){background:var(--accent)}
+  .btn-ghost{background:transparent}
+  .theme-btn{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.35);color:#fff;padding:8px 12px;font-size:.82rem}
+  .spacer{flex:1 1 auto}
+  .grid{display:grid;gap:14px}
+  @media (min-width:720px){
+    .grid.cols-2{grid-template-columns:1fr 1fr}
+    .grid.cols-3{grid-template-columns:repeat(3,1fr)}
+  }
+  .drop{
+    border:2px dashed var(--border);
+    border-radius:12px;
+    background:var(--bg-soft);
+    padding:22px 16px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s,background .15s;
+  }
+  .drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+  .drop strong{display:block;margin-bottom:4px}
+  .drop span{font-size:.82rem;color:var(--muted)}
+  .pw-row{display:flex;gap:8px;align-items:stretch}
+  .pw-row input{flex:1 1 auto;min-width:0}
+  .pw-row button{flex:0 0 auto;white-space:nowrap}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+  .file-name{font-size:.82rem;color:var(--muted);margin-top:8px;word-break:break-all}
+  .readout{font-size:.84rem;color:var(--muted);margin-top:10px;line-height:1.6}
+  .readout strong{color:var(--text)}
+  .chip{
+    display:inline-block;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px;
+    background:var(--accent-soft);color:var(--accent-strong);border:1px solid var(--accent);
+  }
+  .modes{border:1px solid var(--border);border-radius:12px;padding:12px;margin:0;display:grid;gap:10px}
+  @media (min-width:640px){.modes{grid-template-columns:1fr 1fr}}
+  .modes legend{font-size:.86rem;font-weight:700;padding:0 6px}
+  .mode-opt{
+    display:flex;align-items:flex-start;gap:10px;margin:0;font-weight:500;
+    border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--bg-soft);cursor:pointer;
+  }
+  .mode-opt:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+  .mode-opt input{width:18px;height:18px;margin-top:2px;accent-color:var(--accent-strong);flex:0 0 auto}
+  .mode-opt .t{font-weight:700;font-size:.9rem;display:block}
+  .mode-opt .d{font-size:.78rem;color:var(--muted);display:block;margin-top:2px}
+  .combo{position:relative}
+  .suggest{
+    list-style:none;margin:6px 0 0;padding:6px;position:absolute;z-index:20;left:0;right:0;
+    background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);
+    max-height:230px;overflow:auto;
+  }
+  .suggest li{margin:0}
+  .suggest button{
+    display:block;width:100%;text-align:left;border:0;background:transparent;
+    padding:9px 10px;border-radius:8px;font-weight:500;font-size:.88rem;
+  }
+  .suggest button .k{color:var(--muted);font-weight:400}
+  .suggest button:hover,.suggest button.active{background:var(--accent-soft)}
+  .status{
+    display:none;align-items:center;gap:10px;
+    padding:12px 14px;border-radius:12px;margin:0 0 16px;font-size:.9rem;font-weight:600;
+    white-space:pre-wrap;word-break:break-word;
+  }
+  .status.show{display:flex}
+  .status.info{background:var(--info-soft);color:var(--info)}
+  .status.error{background:var(--danger-soft);color:var(--danger)}
+  .status.busy{background:var(--accent-soft);color:var(--accent-strong)}
+  .spinner{
+    width:16px;height:16px;border-radius:50%;flex:0 0 auto;
+    border:2px solid currentColor;border-top-color:transparent;
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .summary{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  @media (min-width:640px){.summary{grid-template-columns:repeat(4,1fr)}}
+  .stat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px}
+  .stat .n{font-size:1.6rem;font-weight:800;line-height:1.1}
+  .stat .l{font-size:.8rem;color:var(--muted);margin-top:2px}
+  .stat.confirmed{border-color:var(--accent);background:var(--ok-soft)}
+  .stat.check{background:var(--warn-soft)}
+  .stat.notfound{background:var(--danger-soft)}
+  .stat.notonlist{background:var(--info-soft)}
+  .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:520px}
+  th,td{padding:10px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+  th{font-size:.76rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
+  td.num,th.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  tbody tr:last-child td{border-bottom:none}
+  .badge{display:inline-block;font-size:.74rem;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+  .badge.confirmed{background:var(--ok-soft);color:var(--ok);border:1px solid var(--ok)}
+  .badge.check{background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn)}
+  .badge.notfound{background:var(--danger-soft);color:var(--danger);border:1px solid var(--danger)}
+  .badge.dup{background:var(--info-soft);color:var(--info);border:1px solid var(--info);margin-left:6px}
+  .expander{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:24px;height:24px;padding:0;margin-right:8px;border-radius:7px;
+    background:var(--bg-soft);border:1px solid var(--border);font-size:.7rem;line-height:1;
+  }
+  .expander[aria-expanded="true"]{background:var(--accent-soft);border-color:var(--accent)}
+  .name-cell{display:flex;align-items:center;gap:2px;min-width:190px}
+  .detail-tr td{background:var(--bg-soft);padding:0}
+  .detail-inner{padding:12px 14px}
+  .detail-inner table{min-width:440px}
+  .detail-inner th,.detail-inner td{padding:6px 8px;font-size:.82rem}
+  .detail-inner tfoot td{font-weight:700;border-top:2px solid var(--border);border-bottom:none}
+  .muted{color:var(--muted)}
+  .empty{color:var(--muted);font-size:.88rem;padding:8px 0}
+  footer{border-top:1px solid var(--border);margin-top:8px;padding-top:14px;color:var(--muted);font-size:.78rem}
+  .note{font-size:.85rem;color:var(--muted);margin:14px 0 0}
+  .note strong{color:var(--text)}
+  code{background:var(--bg-soft);border:1px solid var(--border);border-radius:6px;padding:1px 5px;font-size:.85em}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="head-row">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">M</div>
+        <div>
+          <h1>M-Pesa Statement Checker</h1>
+          <p class="sub">Check float and till payments against your own list of names, and search by amount.</p>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <button type="button" class="theme-btn" id="downloadBtn">Download app</button>
+      <button type="button" class="theme-btn" id="themeBtn" aria-pressed="false">Dark mode</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+
+    <section class="card" aria-labelledby="inTitle">
+      <h2 id="inTitle">1. Add your statement</h2>
+
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a statement file or drop it here">
+        <strong>Drop your statement here, or tap to choose</strong>
+        <span>PDF (password-protected is fine), CSV, or TXT</span>
+      </div>
+      <input type="file" id="fileInput" accept=".pdf,.csv,.txt,application/pdf,text/csv,text/plain" hidden>
+      <p class="file-name" id="fileName" hidden></p>
+
+      <details style="margin-top:14px">
+        <summary style="cursor:pointer;font-size:.86rem;font-weight:600">Or paste statement text instead</summary>
+        <div style="margin-top:10px">
+          <textarea id="pasteText" placeholder="Paste the statement lines here…" aria-label="Pasted statement text"></textarea>
+        </div>
+      </details>
+
+      <h3>Statement password</h3>
+      <div class="pw-row">
+        <input type="password" id="pwInput" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="Safaricom SMS/email password (if any)" aria-label="Statement password">
+        <button type="button" id="pwToggle" aria-pressed="false" aria-label="Show password">Show</button>
+      </div>
+      <p class="hint">Only used to unlock the PDF in this tab. It is never saved, logged, or sent anywhere.</p>
+
+      <div class="actions">
+        <button type="button" class="btn-primary" id="readBtn">Read statement</button>
+        <button type="button" class="btn-ghost" id="sampleBtn">Load sample</button>
+        <button type="button" class="btn-ghost" id="resetBtn">Reset</button>
+      </div>
+      <p class="readout" id="readout" aria-live="polite" hidden></p>
+    </section>
+
+    <section class="card" aria-labelledby="modeTitle">
+      <h2 id="modeTitle">2. What do you want to check?</h2>
+      <fieldset class="modes">
+        <legend class="muted">Choose one</legend>
+        <label class="mode-opt">
+          <input type="radio" name="mode" value="float" checked>
+          <span>
+            <span class="t">Check Float</span>
+            <span class="d">Money sent to people. Matches names against Send Money recipients and lists the <strong>Withdrawn</strong> amount.</span>
+          </span>
+        </label>
+        <label class="mode-opt">
+          <input type="radio" name="mode" value="till">
+          <span>
+            <span class="t">Check Till</span>
+            <span class="d">Paybill and Buy Goods. Matches names against till details and lists the <strong>Paid In</strong> amount.</span>
+          </span>
+        </label>
+      </fieldset>
+      <p class="hint" id="modeSuggest" aria-live="polite"></p>
+    </section>
+
+    <section class="card" aria-labelledby="nameTitle">
+      <h2 id="nameTitle">3. Your names</h2>
+
+      <label for="quickAdd">Quick add — type one name</label>
+      <div class="combo">
+        <input type="text" id="quickAdd" autocomplete="off" spellcheck="false"
+               role="combobox" aria-expanded="false" aria-controls="suggestList" aria-autocomplete="list"
+               placeholder="e.g. AKINYI">
+        <ul class="suggest" id="suggestList" role="listbox" aria-label="Name suggestions" hidden></ul>
+      </div>
+      <p class="hint" id="comboHint">Read the statement first, then one name is enough — pick the full name from the suggestions.</p>
+
+      <h3>Names list</h3>
+      <label for="namesInput">One name per line. Add an amount after a comma to check the expected total.</label>
+      <textarea id="namesInput" placeholder="John Otieno, 1500&#10;Mary Akinyi Otieno&#10;Jane Wanjiku" aria-label="Names list"></textarea>
+      <p class="hint">Example: <code>John Otieno, 1500</code> confirms a total of KES 1,500.00 for that name.</p>
+      <div class="actions">
+        <button type="button" class="btn-ghost" id="importNamesBtn">Import names from file</button>
+        <span class="hint" id="importNamesHint" aria-live="polite" style="margin:0"></span>
+      </div>
+      <input type="file" id="namesFile" accept=".txt,.csv,.tsv,text/plain,text/csv" hidden>
+
+      <h3>Search an amount</h3>
+      <label for="amountSearch">Find transactions of a given amount (KES)</label>
+      <div class="pw-row">
+        <input type="text" id="amountSearch" inputmode="decimal" autocomplete="off" spellcheck="false"
+               placeholder="e.g. 1500 or 1000-2000" aria-label="Search an amount">
+        <button type="button" id="amountBtn">Search</button>
+      </div>
+      <p class="hint">Looks at the <strong id="amountColLabel">Withdrawn</strong> column for the rows you are checking.
+        Use an exact amount (<code>1500</code>), a range (<code>1000-2000</code>), or a minimum (<code>1500+</code>).</p>
+      <p class="hint" id="amountStatus" aria-live="polite"></p>
+      <div id="amountResults" hidden></div>
+    </section>
+
+    <section class="card" aria-labelledby="filterTitle">
+      <h2 id="filterTitle">4. Optional filters</h2>
+      <div class="grid cols-2">
+        <div>
+          <label for="dateFrom">From date</label>
+          <input type="date" id="dateFrom">
+        </div>
+        <div>
+          <label for="dateTo">To date</label>
+          <input type="date" id="dateTo">
+        </div>
+      </div>
+      <div style="margin-top:14px;max-width:320px">
+        <label for="minAmount">Minimum amount (KES)</label>
+        <input type="number" id="minAmount" min="0" step="0.01" placeholder="0.00">
+      </div>
+
+      <div class="actions">
+        <button type="button" class="btn-primary" id="runBtn">Check statement</button>
+      </div>
+    </section>
+
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+
+    <section id="results" hidden aria-labelledby="resTitle">
+      <h2 id="resTitle" style="padding:0 0 12px">5. Results</h2>
+
+      <div class="summary" id="summary"></div>
+
+      <section class="card" style="margin-top:16px" aria-labelledby="t1Title">
+        <h2 id="t1Title">Names on your list</h2>
+        <div class="table-scroll">
+          <table id="table1">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Result</th>
+                <th scope="col" class="num">Payments</th>
+                <th scope="col" class="num" id="th1Amount">Total withdrawn (KES)</th>
+                <th scope="col">Last payment</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="empty" id="table1Empty" hidden>No names were entered.</p>
+      </section>
+
+      <section class="card" aria-labelledby="t2Title">
+        <h2 id="t2Title">Paid but not on your list</h2>
+        <div class="table-scroll">
+          <table id="table2">
+            <thead>
+              <tr>
+                <th scope="col">Name in statement</th>
+                <th scope="col" class="num">Payments</th>
+                <th scope="col" class="num" id="th2Amount">Total withdrawn (KES)</th>
+                <th scope="col">Last payment</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="empty" id="table2Empty" hidden>Every payment matched someone on your list.</p>
+      </section>
+
+      <p class="note" id="readNote"></p>
+
+      <div class="actions">
+        <button type="button" class="btn-primary" id="copyBtn">Copy results</button>
+        <button type="button" class="btn-ghost" id="csvBtn">Export CSV</button>
+      </div>
+      <p class="hint" id="copyHint" aria-live="polite"></p>
+    </section>
+
+    <footer>
+      Everything runs in your browser. Your statement, password, and names are never uploaded, stored, or logged.
+      Use <strong>Download app</strong> to save a copy you can open offline (it needs an internet connection the first
+      time to load the PDF reader).
+    </footer>
+
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+(function () {
+  'use strict';
+
+  // A clean copy of this page, captured before the app changes the DOM, so the
+  // "Download app" button can save a working stand-alone file.
+  var ORIGINAL_DOC = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+  /* ------------------------------------------------------------------ *
+   * Constants
+   * ------------------------------------------------------------------ */
+  var FILLER = { TO: 1, FROM: 1, CUSTOMER: 1, TRANSFER: 1 };
+  var STATUS_WORDS = ['COMPLETED', 'FAILED', 'CANCELLED', 'PENDING', 'REVERSED', 'SUCCESS', 'DECLINED'];
+  var STATUS_CAPTURE_RE = new RegExp('\\b(' + STATUS_WORDS.join('|') + ')\\b', 'i');
+  var STATUS_RE = new RegExp('\\b(' + STATUS_WORDS.join('|') + ')\\b', 'ig');
+
+  // A transaction row starts with a 10-character receipt (A-Z0-9). The
+  // completion time normally follows, but we match the two independently so a
+  // slightly different date/time format, or a missing time, does not lose the
+  // whole row. The lookahead stops a longer token (e.g. a 12-digit phone
+  // number) from being mistaken for a receipt.
+  var RECEIPT_LINE_RE = /^\s*([A-Z0-9]{10})(?=\b|\d{4}-\d{1,2}-\d{1,2})/;
+  var DATETIME_RE = /(\d{4}-\d{1,2}-\d{1,2})\s+(\d{1,2}:\d{2}(?::\d{2})?)/;
+
+  // Header / footer fragments. A real statement header wraps as
+  // "Receipt No." / "Completion Time" / "Details" / "Transaction Status" /
+  // "Paid In" / "Withdrawn" / "Balance", sometimes one word per line.
+  var SKIP_RES = [
+    /^receipt\s*no\.?$/i, /^completion(\s+time)?\.?$/i, /^time\.?$/i,
+    /^details\.?$/i, /^transaction(\s+status)?\.?$/i, /^status\.?$/i,
+    /^paid\s*in\.?$/i, /^withdrawn\.?$/i, /^balance\.?$/i,
+    /^receipt\s*no\b/i, /completion\s*time/i, /transaction\s*status/i,
+    /m-?pesa\s+statement/i, /^page\s+\d+/i, /page\s+\d+\s+of\s+\d+/i,
+    /customer\s+name/i, /mobile\s+number/i, /statement\s+period/i, /requested\s+date/i,
+    /^total\b/i, /^grand\s+total/i, /^summary\b/i, /account\s+number/i,
+    /^[-\s]+$/, /^\d{1,2}$/
+  ];
+
+  var MODE = {
+    float: { key: 'float', label: 'Check Float', amountLabel: 'Total withdrawn (KES)', col: 'Withdrawn' },
+    till:  { key: 'till',  label: 'Check Till',  amountLabel: 'Total paid in (KES)',   col: 'Paid In' }
+  };
+
+  var SAMPLE_STATEMENT = [
+    'M-PESA STATEMENT',
+    'Customer Name: SAMPLE USER',
+    'Mobile Number: 254712000000',
+    'Statement Period: 2024-05-01 to 2024-05-31',
+    '',
+    'Receipt No.',
+    'Completion Time',
+    'Details',
+    'Transaction Status',
+    'Paid In',
+    'Withdrawn',
+    'Balance',
+    'QJD12ABC3D   2024-05-03 09:12:45    Customer Transfer to - 254712****345 JANE         COMPLETED            0.00    -1500.00   5000.00',
+    '                                     WANJIKU',
+    'QJD12ABC3E   2024-05-06 10:00:00    Customer Transfer to - 254712****345 JANE WANJIKU COMPLETED            0.00     -800.00   4200.00',
+    'QJD12ABC3F   2024-05-07 08:30:00    Customer Transfer to - 254799****111 MARY AKINYI OTIENO COMPLETED       0.00    -1200.00   3000.00',
+    'QJD12ABCD4   2024-05-07 08:31:00    Pay Bill Charge                                  COMPLETED            0.00      -13.00   2987.00',
+    'QJD12ABC3G   2024-05-08 09:00:00    Customer Transfer to - 254733****222 GRACE NJERI COMPLETED               0.00     -800.00   2187.00',
+    'QJD12ABC3H   2024-05-09 11:00:00    Customer Transfer to - 254700****999 PETER MWANGI FAILED                0.00    -2000.00   2187.00',
+    'QJD12ABC3J   2024-05-10 12:00:00    Customer Transfer to - 254701****555 MARY AKINYI KAMAU COMPLETED          0.00     -600.00   1587.00',
+    'QJD12ABC3K   2024-05-11 09:15:00    Pay Bill Online to 123456 - SAMPLE SHOP          COMPLETED          500.00       0.00   2087.00',
+    'QJD12ABC3L   2024-05-12 14:30:00    Buy Goods and Services from 123456 - SAMPLE SHOP COMPLETED          350.00       0.00   2437.00',
+    '',
+    'Total: 9 transactions'
+  ].join('\n');
+
+  var SAMPLE_NAMES = [
+    'JANE WANJIKU, 2300',
+    'MARY AKINYI OTIENO, 1200',
+    'MARY AKINYI KAMAUX',
+    'JOHN OTIENO',
+    'JANE WANJIKU, 2300',
+    'SAMPLE SHOP, 850'
+  ].join('\n');
+
+  /* ------------------------------------------------------------------ *
+   * Helpers
+   * ------------------------------------------------------------------ */
+  var $ = function (sel) { return document.querySelector(sel); };
+  var tick = function (ms) { return new Promise(function (r) { setTimeout(r, ms || 0); }); };
+
+  function num(v) {
+    if (v === null || v === undefined) return 0;
+    var n = parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+    return isNaN(n) ? 0 : n;
+  }
+  function fmtKES(v) {
+    return 'KES ' + (Number(v) || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function pad(n) { return String(n).length === 1 ? '0' + n : String(n); }
+  function toISODate(s) {
+    s = String(s || '').trim();
+    var m = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return m[1] + '-' + pad(m[2]) + '-' + pad(m[3]);
+    m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m) return m[3] + '-' + pad(m[2]) + '-' + pad(m[1]);
+    m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2})/);
+    if (m) { var y = +m[3]; y += (y < 70 ? 2000 : 1900); return y + '-' + pad(m[2]) + '-' + pad(m[1]); }
+    return '';
+  }
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function normWords(s) {
+    return String(s || '').toUpperCase().replace(/[^A-Z0-9\s]/g, ' ')
+      .split(/\s+/).filter(function (w) { return w && !FILLER[w]; });
+  }
+  function isSkippable(line) {
+    for (var i = 0; i < SKIP_RES.length; i++) { if (SKIP_RES[i].test(line)) return true; }
+    return false;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Transaction model
+   * ------------------------------------------------------------------ */
+  function extractRecipient(details) {
+    var m = details.match(/\b\d{3,}\*+\d+\b/) || details.match(/\b(?:254|0)\d{8,}\b/);
+    if (!m) return '';
+    return details.slice(m.index + m[0].length).replace(/^[\s\-–—:]+/, '').trim();
+  }
+  function extractTillName(details) {
+    var m = details.match(/\b(?:to|from)\s+(\d{4,})\s*[-–—]?\s*(.+)$/i);
+    if (m) {
+      var tail = m[2]
+        .replace(/\b\d{4,}\b/g, ' ')
+        .replace(/^\s*[-–—:.]+\s*/, '')
+        .replace(/\s+/g, ' ').trim();
+      // drop a trailing account number if the name is followed by one
+      tail = tail.replace(/\s+\d{5,}$/, '').trim();
+      if (tail) return tail;
+    }
+    return '';
+  }
+
+  function makeTxn(receipt, time, rest) {
+    rest = String(rest || '').trim();
+    var matches = [], re = /-?\d[\d,]*\.\d{2}/g, m;
+    while ((m = re.exec(rest)) !== null) matches.push({ str: m[0], index: m.index });
+
+    var details = rest, paidIn = 0, withdrawn = 0, balance = 0;
+    if (matches.length >= 3) {
+      var a = matches[matches.length - 3], b = matches[matches.length - 2], c = matches[matches.length - 1];
+      details = rest.slice(0, a.index);
+      paidIn = num(a.str); withdrawn = num(b.str); balance = num(c.str);
+    } else if (matches.length === 2) {
+      details = rest.slice(0, matches[0].index);
+      withdrawn = num(matches[0].str); balance = num(matches[1].str);
+    } else if (matches.length === 1) {
+      details = rest.slice(0, matches[0].index);
+      withdrawn = num(matches[0].str);
+    }
+
+    var st = rest.match(STATUS_CAPTURE_RE);
+    var status = st ? st[1].toUpperCase() : '';
+    details = details.replace(STATUS_RE, ' ').replace(/\s*-\s*$/, '').replace(/\s+/g, ' ').trim();
+
+    return {
+      receipt: receipt, time: time,
+      dateISO: toISODate(time), dateDisplay: toISODate(time) || String(time || '').slice(0, 10),
+      detailsBase: details, wrapped: '',
+      status: status, paidIn: paidIn, withdrawn: withdrawn, balance: balance
+    };
+  }
+
+  function finalizeTxn(t) {
+    t.details = (t.detailsBase + ' ' + t.wrapped).replace(/\s+/g, ' ').trim();
+
+    // Recover a completion time that landed on a wrapped line.
+    if (!t.dateISO) {
+      var d = t.details.match(DATETIME_RE);
+      if (d) {
+        t.dateISO = toISODate(d[1]);
+        t.dateDisplay = t.dateISO;
+        t.details = t.details.replace(DATETIME_RE, ' ').replace(/\s+/g, ' ').trim();
+      }
+    }
+
+    t.recipient = extractRecipient(t.details);
+    t.tillName = extractTillName(t.details);
+
+    t.isFloat = /customer transfer to|send money|sent to|transfer to/i.test(t.details) && !!t.recipient;
+    t.isTill = /pay\s?bill|buy goods|till/i.test(t.details)
+      || /pay\s?bill|buy goods|till/i.test(t.recipient || '');
+
+    if (/charge/i.test(t.details)) t.excluded = 'charge';
+    else if (/FAILED|CANCELLED/i.test(t.status)) t.excluded = 'status';
+    else t.excluded = null;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Line-based parsing (PDF text + pasted text)
+   * ------------------------------------------------------------------ */
+  function parseLines(lines) {
+    var txns = [], cur = null;
+    for (var i = 0; i < lines.length; i++) {
+      var line = String(lines[i] || '').trim();
+      if (!line) continue;
+      var m = line.match(RECEIPT_LINE_RE);
+      if (m) {
+        var rest = line.slice(m[0].length);
+        var dt = rest.match(DATETIME_RE);
+        var time = '';
+        if (dt) {
+          time = dt[1] + ' ' + dt[2];
+          rest = rest.slice(0, dt.index) + ' ' + rest.slice(dt.index + dt[0].length);
+        }
+        cur = makeTxn(m[1], time, rest);
+        txns.push(cur);
+      } else if (cur && !isSkippable(line)) {
+        cur.wrapped += ' ' + line;
+      }
+    }
+    for (var j = 0; j < txns.length; j++) finalizeTxn(txns[j]);
+    return txns;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * CSV parsing
+   * ------------------------------------------------------------------ */
+  function parseCSV(text) {
+    var rows = [], row = [], cur = '', inQ = false;
+    for (var i = 0; i < text.length; i++) {
+      var c = text[i];
+      if (inQ) {
+        if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+        else cur += c;
+      } else {
+        if (c === '"') inQ = true;
+        else if (c === ',') { row.push(cur); cur = ''; }
+        else if (c === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+        else if (c !== '\r') cur += c;
+      }
+    }
+    if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+    return rows;
+  }
+
+  function mapCsvColumns(header) {
+    var idx = { receipt: -1, time: -1, details: -1, status: -1, paidIn: -1, withdrawn: -1, balance: -1 };
+    for (var i = 0; i < header.length; i++) {
+      var h = String(header[i] || '').toLowerCase().replace(/[^a-z]/g, '');
+      if (idx.receipt < 0 && h.indexOf('receipt') === 0) idx.receipt = i;
+      else if (idx.time < 0 && (h.indexOf('completion') === 0 || h === 'time' || h.indexOf('datetime') === 0)) idx.time = i;
+      else if (idx.details < 0 && h.indexOf('details') === 0) idx.details = i;
+      else if (idx.status < 0 && h.indexOf('status') >= 0) idx.status = i;
+      else if (idx.paidIn < 0 && h.indexOf('paidin') === 0) idx.paidIn = i;
+      else if (idx.withdrawn < 0 && h.indexOf('withdrawn') === 0) idx.withdrawn = i;
+      else if (idx.balance < 0 && h.indexOf('balance') === 0) idx.balance = i;
+    }
+    return idx;
+  }
+
+  function txnsFromCSV(text) {
+    var rows = parseCSV(text), txns = [], cols = null;
+    for (var r = 0; r < rows.length; r++) {
+      var cells = rows[r];
+      if (!cells.length) continue;
+      var joined = cells.join(' ').toLowerCase();
+      if (joined.indexOf('receipt') >= 0 && joined.indexOf('details') >= 0) { cols = mapCsvColumns(cells); continue; }
+      if (!cols || cols.receipt < 0) continue;
+      var receipt = String(cells[cols.receipt] || '').trim().toUpperCase();
+      if (!/^[A-Z0-9]{10}$/.test(receipt)) continue;
+      var rest = [
+        cells[cols.details] || '',
+        cols.status >= 0 ? (cells[cols.status] || '') : '',
+        cols.paidIn >= 0 ? (cells[cols.paidIn] || '') : '',
+        cols.withdrawn >= 0 ? (cells[cols.withdrawn] || '') : '',
+        cols.balance >= 0 ? (cells[cols.balance] || '') : ''
+      ].join('   ');
+      var t = makeTxn(receipt, String(cells[cols.time] || '').trim(), rest);
+      finalizeTxn(t);
+      txns.push(t);
+    }
+    return txns;
+  }
+
+  // Only treat text as CSV when a real header row splits into several
+  // comma-separated columns. Plain statement text often contains commas
+  // (amounts like 1,500.00, or names like SMITH, JOHN) and the header words
+  // "Receipt"/"Details", and must not be mistaken for CSV.
+  function looksLikeCSV(text) {
+    var lines = String(text || '').split(/\r?\n/);
+    for (var i = 0; i < lines.length && i < 4; i++) {
+      if (!lines[i].trim()) continue;
+      var rows = parseCSV(lines[i]);
+      var cells = rows[0] || [];
+      if (cells.length >= 4) {
+        var j = cells.join(' ').toLowerCase();
+        if (j.indexOf('receipt') >= 0 && (j.indexOf('details') >= 0 || j.indexOf('status') >= 0)) return true;
+      }
+    }
+    return false;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * PDF parsing
+   * ------------------------------------------------------------------ */
+  function groupPageText(content) {
+    var buckets = {}, order = [];
+    for (var i = 0; i < content.items.length; i++) {
+      var it = content.items[i];
+      if (!it || typeof it.str !== 'string' || it.str === '') continue;
+      var tr = it.transform || [1, 0, 0, 1, 0, 0];
+      var y = Math.round(tr[5]);
+      if (!buckets[y]) { buckets[y] = []; order.push(y); }
+      buckets[y].push(it);
+    }
+    order.sort(function (a, b) { return b - a; });
+    var lines = [];
+    for (var k = 0; k < order.length; k++) {
+      var items = buckets[order[k]].slice().sort(function (a, b) { return a.transform[4] - b.transform[4]; });
+      var line = '', prevEnd = null;
+      for (var j = 0; j < items.length; j++) {
+        var item = items[j], x = item.transform[4];
+        var w = typeof item.width === 'number' ? item.width : 0;
+        if (prevEnd !== null && (x - prevEnd) > 1.5) line += ' ';
+        line += item.str;
+        prevEnd = x + w;
+      }
+      line = line.trim();
+      if (line) lines.push(line);
+    }
+    return lines;
+  }
+
+  async function parsePDF(buffer, password) {
+    if (!window.pdfjsLib) {
+      throw new Error('Could not load the PDF reader library. Check your internet connection and try again.');
+    }
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    var params = { data: buffer, useSystemFonts: true };
+    if (password) params.password = password;
+
+    var loadingTask = window.pdfjsLib.getDocument(params), pdf;
+    try {
+      pdf = await loadingTask.promise;
+    } catch (err) {
+      if (err && err.name === 'PasswordException') {
+        var needPw = (err.code === 1) ||
+          (window.pdfjsLib.PasswordResponses && err.code === window.pdfjsLib.PasswordResponses.NEED_PASSWORD);
+        throw new Error(needPw
+          ? 'This statement is password protected. Enter the password.'
+          : "That password didn't work.");
+      }
+      throw new Error('That file could not be read as a PDF. It may be damaged or not a PDF.');
+    }
+
+    var lines = [];
+    for (var p = 1; p <= pdf.numPages; p++) {
+      var page = await pdf.getPage(p);
+      lines = lines.concat(groupPageText(await page.getTextContent()));
+      if (p % 5 === 0) await tick(0);
+    }
+    return lines;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Reading input
+   * ------------------------------------------------------------------ */
+  var lastReadLines = [];
+
+  async function readStatement() {
+    var file = $("#fileInput").files && $("#fileInput").files[0];
+    var pasted = $("#pasteText").value;
+    var password = $("#pwInput").value;
+
+    if (file) {
+      var name = file.name.toLowerCase();
+      var isPdf = name.endsWith('.pdf') || file.type === 'application/pdf';
+      var isCsv = name.endsWith('.csv') || file.type === 'text/csv';
+      var isTxt = name.endsWith('.txt') || file.type === 'text/plain';
+      if (!isPdf && !isCsv && !isTxt) throw new Error('Unsupported file type. Please upload a PDF, CSV, or TXT file.');
+      if (file.size === 0) throw new Error('That file is empty.');
+
+      if (isPdf) {
+        lastReadLines = await parsePDF(await file.arrayBuffer(), password);
+        return parseLines(lastReadLines);
+      }
+
+      var text = await file.text();
+      if (!text.trim()) throw new Error('That file is empty.');
+      // Try the preferred format first, then fall back to the other one.
+      var byCsv = (isCsv || looksLikeCSV(text)) ? txnsFromCSV(text) : [];
+      if (byCsv.length) { lastReadLines = text.split(/\r?\n/); return byCsv; }
+      lastReadLines = text.split(/\r?\n/);
+      return parseLines(lastReadLines);
+    }
+
+    if (pasted.trim()) {
+      var t = pasted.trim();
+      var fromCsv = looksLikeCSV(t) ? txnsFromCSV(t) : [];
+      if (fromCsv.length) { lastReadLines = t.split(/\r?\n/); return fromCsv; }
+      lastReadLines = t.split(/\r?\n/);
+      return parseLines(lastReadLines);
+    }
+
+    throw new Error('Add a statement file, or paste statement text.');
+  }
+
+  // Helpful message that shows what the reader actually saw.
+  function emptyStatementError() {
+    var lines = (lastReadLines || []).filter(function (l) { return String(l).trim(); });
+    if (!lines.length) {
+      return 'No transactions were found. The file was read but produced no text. ' +
+        'If this is a scanned PDF (a picture of a statement), it has no selectable text and cannot be checked here.';
+    }
+    var head = lines.slice(0, 8).map(function (l) {
+      l = String(l).trim();
+      return l.length > 120 ? l.slice(0, 120) + '…' : l;
+    });
+    return 'No transactions were found in that statement.\n' +
+      'The reader saw these lines (showing up to 8). Each transaction row must start with a 10-character receipt number:\n\n' +
+      head.join('\n');
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Names
+   * ------------------------------------------------------------------ */
+  function parseNames(text) {
+    var out = [], lines = String(text || '').split(/\r?\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      var name = line, expected = null, parts = line.split(',');
+      if (parts.length >= 2) {
+        var last = parts[parts.length - 1].trim().replace(/[^0-9.\-]/g, '');
+        if (last !== '' && !isNaN(parseFloat(last))) {
+          expected = parseFloat(last);
+          name = parts.slice(0, parts.length - 1).join(',').trim();
+        }
+      }
+      if (name) out.push({ name: name, expected: expected });
+    }
+    return out;
+  }
+
+  // Turn an imported names file into the same "one name per line" text.
+  // Handles plain .txt lists, and .csv files (with or without a header row),
+  // using the first column as the name and a numeric column as the amount.
+  function importNamesText(text, isCsv) {
+    var lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+    var firstIdx = -1;
+    for (var i = 0; i < lines.length; i++) { if (lines[i].trim()) { firstIdx = i; break; } }
+
+    var header = false;
+    if (firstIdx >= 0) {
+      var hc = parseCSV(lines[firstIdx])[0] || [];
+      var hasName = hc.some(function (c) { return /name/i.test(c); });
+      var hasDigit = hc.some(function (c) { return /\d/.test(c); });
+      header = !hasDigit && (hasName || (hc.length === 1 && /^names?$/i.test((hc[0] || '').trim())));
+    }
+
+    var body = lines.slice(header ? firstIdx + 1 : 0);
+    if (isCsv || header) {
+      return body.map(function (line) {
+        if (!line.trim()) return '';
+        var cells = parseCSV(line)[0] || [];
+        if (cells.length <= 1) return (cells[0] || '').trim();
+        var name = (cells[0] || '').trim();
+        for (var k = cells.length - 1; k >= 1; k--) {
+          var v = String(cells[k] || '').replace(/[^0-9.\-]/g, '');
+          if (v !== '' && !isNaN(parseFloat(v))) return name ? name + ', ' + v : '';
+        }
+        return name;
+      }).filter(function (l) { return l.trim(); }).join('\n');
+    }
+    return body.join('\n').replace(/\n{2,}/g, '\n').trim();
+  }
+
+  function handleNamesFile(input) {
+    var hint = $("#importNamesHint");
+    var file = input.files && input.files[0];
+    if (!file) return;
+    file.text().then(function (text) {
+      var isCsv = /\.(csv|tsv)$/i.test(file.name) || /csv/i.test(file.type);
+      var imported = importNamesText(text, isCsv);
+      if (!imported.trim()) { hint.textContent = 'That file had no names in it.'; return; }
+      var box = $("#namesInput");
+      var existing = box.value.trim();
+      box.value = existing ? existing + '\n' + imported : imported;
+      var n = parseNames(imported).length;
+      hint.textContent = 'Imported ' + n + ' name' + (n === 1 ? '' : 's') + ' from ' + file.name + '.';
+    }).catch(function () {
+      hint.textContent = 'Could not read that file.';
+    });
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Candidates (mode-aware)
+   * ------------------------------------------------------------------ */
+  function buildCandidates(txns, modeKey) {
+    var out = [];
+    for (var i = 0; i < txns.length; i++) {
+      var t = txns[i];
+      if (t.excluded) continue;
+      var isFloat = modeKey === 'float';
+      if (isFloat ? !t.isFloat : !t.isTill) continue;
+      var label = isFloat ? t.recipient : (t.tillName || t.details);
+      out.push({
+        txn: t,
+        receipt: t.receipt,
+        matchText: isFloat ? t.recipient : (t.tillName || t.details),
+        name: label,
+        amount: Math.abs(isFloat ? t.withdrawn : t.paidIn),
+        dateISO: t.dateISO,
+        dateDisplay: t.dateDisplay
+      });
+    }
+    return out;
+  }
+
+  function suggestionText(txns) {
+    var f = 0, tl = 0;
+    txns.forEach(function (t) {
+      if (t.excluded) return;
+      if (t.isFloat) f++;
+      if (t.isTill) tl++;
+    });
+    var pick = f >= tl ? 'float' : 'till';
+    var parts = ['Suggested: ' + MODE[pick].label];
+    parts.push('found ' + f + ' Send Money row' + (f === 1 ? '' : 's') +
+      ' and ' + tl + ' Till row' + (tl === 1 ? '' : 's') + '.');
+    return { mode: pick, text: parts.join(' — ') };
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Analysis
+   * ------------------------------------------------------------------ */
+  function analyze(names, candidates, transactionsRead, modeKey) {
+    var fullUsage = {};
+
+    var rows = names.map(function (entry, idx) {
+      var nameWords = normWords(entry.name);
+      var full = [], partial = [];
+
+      if (nameWords.length) {
+        for (var i = 0; i < candidates.length; i++) {
+          var c = candidates[i];
+          var rw = {}, words = normWords(c.matchText);
+          for (var w = 0; w < words.length; w++) rw[words[w]] = 1;
+          var hit = 0;
+          for (var n = 0; n < nameWords.length; n++) if (rw[nameWords[n]]) hit++;
+          if (hit === nameWords.length) full.push(c);
+          else if (hit >= 2 && hit >= Math.ceil(nameWords.length / 2)) partial.push(c);
+        }
+      }
+
+      var items, result;
+      if (full.length) { items = full; result = 'confirmed'; }
+      else if (partial.length) { items = partial; result = 'check'; }
+      else { items = []; result = 'notfound'; }
+
+      var total = items.reduce(function (a, c) { return a + c.amount; }, 0);
+      if (result !== 'notfound' && entry.expected !== null && Math.abs(total - entry.expected) > 0.01) {
+        result = 'check';
+      }
+
+      for (var k = 0; k < full.length; k++) {
+        if (!fullUsage[full[k].receipt]) fullUsage[full[k].receipt] = {};
+        fullUsage[full[k].receipt][idx] = true;
+      }
+
+      var last = '';
+      for (var d = 0; d < items.length; d++) if (items[d].dateISO > last) last = items[d].dateISO;
+
+      return { index: idx, name: entry.name, expected: entry.expected, result: result,
+               items: items, total: total, last: last, duplicate: false };
+    });
+
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].result === 'notfound') continue;
+      for (var j = 0; j < rows[i].items.length; j++) {
+        var key = rows[i].items[j].receipt;
+        if (fullUsage[key] && Object.keys(fullUsage[key]).length > 1) { rows[i].duplicate = true; break; }
+      }
+    }
+
+    var groups = {};
+    for (var c2 = 0; c2 < candidates.length; c2++) {
+      var cd = candidates[c2];
+      if (fullUsage[cd.receipt]) continue;
+      var label = cd.name || 'Unknown';
+      var gk = label.toUpperCase();
+      if (!groups[gk]) groups[gk] = { label: label, count: 0, total: 0, last: '' };
+      groups[gk].count++;
+      groups[gk].total += cd.amount;
+      if (cd.dateISO > groups[gk].last) groups[gk].last = cd.dateISO;
+    }
+    var notOnList = Object.keys(groups).map(function (k) { return groups[k]; });
+    notOnList.sort(function (a, b) { return b.total - a.total; });
+
+    return { rows: rows, notOnList: notOnList, transactionsRead: transactionsRead,
+             counted: candidates.length, mode: modeKey };
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Rendering
+   * ------------------------------------------------------------------ */
+  var RESULT_LABEL = { confirmed: 'Confirmed', check: 'Check', notfound: 'Not found' };
+
+  function currentMode() {
+    var el = document.querySelector('input[name="mode"]:checked');
+    return el ? el.value : 'float';
+  }
+
+  function render(results) {
+    var m = MODE[results.mode];
+    var rows = results.rows, notOnList = results.notOnList;
+
+    $("#resTitle").textContent = '5. Results — ' + m.label;
+    $("#t1Title").textContent = m.key === 'float' ? 'Names on your list (float)' : 'Names on your list (till)';
+    $("#th1Amount").textContent = m.amountLabel;
+    $("#t2Title").textContent = m.key === 'float' ? 'Paid but not on your list' : 'Till payments not on your list';
+    $("#th2Amount").textContent = m.amountLabel;
+
+    var counts = { confirmed: 0, check: 0, notfound: 0 };
+    rows.forEach(function (r) { counts[r.result]++; });
+    $("#summary").innerHTML =
+      statCard('confirmed', counts.confirmed, 'Confirmed') +
+      statCard('check', counts.check, 'Check') +
+      statCard('notfound', counts.notfound, 'Not found') +
+      statCard('notonlist', notOnList.length, 'Not on list');
+
+    // Table 1
+    var tb1 = $("#table1 tbody");
+    tb1.innerHTML = '';
+    if (!rows.length) {
+      $("#table1Empty").hidden = false;
+    } else {
+      $("#table1Empty").hidden = true;
+      var frag = document.createDocumentFragment();
+      rows.forEach(function (r) {
+        var tr = document.createElement('tr');
+        var badge = '<span class="badge ' + r.result + '">' + RESULT_LABEL[r.result] + '</span>';
+        var dup = r.duplicate ? '<span class="badge dup">Possible duplicate</span>' : '';
+        var expandable = r.items.length > 0;
+        tr.innerHTML =
+          '<td class="name-cell">' +
+            (expandable
+              ? '<button type="button" class="expander" aria-expanded="false" aria-controls="det-' + r.index + '">&#9656;</button>'
+              : '<span class="expander" aria-hidden="true" style="visibility:hidden">&#9656;</span>') +
+            '<span>' + esc(r.name) + '</span></td>' +
+          '<td>' + badge + dup + '</td>' +
+          '<td class="num">' + r.items.length + '</td>' +
+          '<td class="num">' + fmtKES(r.total) + '</td>' +
+          '<td>' + (r.last ? esc(r.last) : '<span class="muted">—</span>') + '</td>';
+        frag.appendChild(tr);
+
+        if (expandable) {
+          var dtr = document.createElement('tr');
+          dtr.className = 'detail-tr';
+          dtr.id = 'det-' + r.index;
+          dtr.hidden = true;
+          var list = r.items.slice().sort(function (a, b) { return a.dateISO < b.dateISO ? 1 : -1; });
+          var body = list.map(function (c) {
+            return '<tr><td>' + esc(c.receipt) + '</td><td>' + esc(c.name || '—') + '</td>' +
+                   '<td class="num">' + (Number(c.amount) || 0).toFixed(2) + '</td></tr>';
+          }).join('');
+          dtr.innerHTML = '<td colspan="5"><div class="detail-inner"><div class="table-scroll"><table>' +
+            '<thead><tr><th>Receipt No.</th><th>Details</th><th class="num">' + esc(m.col) + '</th></tr></thead>' +
+            '<tbody>' + body + '</tbody>' +
+            '<tfoot><tr><td colspan="2">Total ' + esc(m.col.toLowerCase()) + '</td>' +
+            '<td class="num">' + r.total.toFixed(2) + '</td></tr></tfoot>' +
+            '</table></div></div></td>';
+          frag.appendChild(dtr);
+        }
+      });
+      tb1.appendChild(frag);
+
+      tb1.querySelectorAll('.expander[aria-controls]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var target = document.getElementById(btn.getAttribute('aria-controls'));
+          var open = btn.getAttribute('aria-expanded') === 'true';
+          btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+          target.hidden = open;
+          btn.innerHTML = open ? '&#9656;' : '&#9662;';
+        });
+      });
+    }
+
+    // Table 2
+    var tb2 = $("#table2 tbody");
+    tb2.innerHTML = '';
+    if (!notOnList.length) {
+      $("#table2Empty").hidden = false;
+    } else {
+      $("#table2Empty").hidden = true;
+      var frag2 = document.createDocumentFragment();
+      notOnList.forEach(function (g) {
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + esc(g.label) + '</td><td class="num">' + g.count + '</td>' +
+          '<td class="num">' + fmtKES(g.total) + '</td>' +
+          '<td>' + (g.last ? esc(g.last) : '<span class="muted">—</span>') + '</td>';
+        frag2.appendChild(tr);
+      });
+      tb2.appendChild(frag2);
+    }
+
+    var ignored = window.__lastTxns.filter(function (t) { return t.excluded; }).length;
+    $("#readNote").innerHTML =
+      'Read <strong>' + results.transactionsRead + '</strong> transaction' + (results.transactionsRead === 1 ? '' : 's') +
+      '. <strong>' + results.counted + '</strong> counted for ' + esc(m.label.toLowerCase()) + ' after filters' +
+      (ignored ? ' (' + ignored + ' ignored: failed or charges)' : '') + '.';
+
+    $("#results").hidden = false;
+  }
+
+  function statCard(cls, n, label) {
+    return '<div class="stat ' + cls + '"><div class="n">' + n + '</div><div class="l">' + label + '</div></div>';
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Copy / export
+   * ------------------------------------------------------------------ */
+  function buildTSV(results) {
+    var m = MODE[results.mode], L = [];
+    L.push([m.label].join('\t'));
+    L.push(['Name', 'Result', 'Payments', m.amountLabel, 'Last payment'].join('\t'));
+    results.rows.forEach(function (r) {
+      L.push([r.name, RESULT_LABEL[r.result] + (r.duplicate ? ' (possible duplicate)' : ''),
+        r.items.length, r.total.toFixed(2), r.last || ''].join('\t'));
+      r.items.slice().sort(function (a, b) { return a.dateISO < b.dateISO ? 1 : -1; }).forEach(function (c) {
+        L.push(['    ' + c.receipt, c.name || '', c.amount.toFixed(2), ''].join('\t'));
+      });
+    });
+    L.push('');
+    L.push([m.key === 'float' ? 'Paid but not on your list' : 'Till payments not on your list'].join('\t'));
+    L.push(['Name', 'Payments', m.amountLabel, 'Last payment'].join('\t'));
+    results.notOnList.forEach(function (g) {
+      L.push([g.label, g.count, g.total.toFixed(2), g.last || ''].join('\t'));
+    });
+    L.push('');
+    L.push(['Transactions read', results.transactionsRead].join('\t'));
+    L.push(['Counted for this check', results.counted].join('\t'));
+    return L.join('\n');
+  }
+
+  async function copyResults() {
+    var text = buildTSV(window.__lastResults);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+      }
+      $("#copyHint").textContent = 'Copied. Paste into Excel or Google Sheets.';
+    } catch (e) {
+      $("#copyHint").textContent = 'Could not copy automatically. Select the table and copy manually.';
+    }
+  }
+
+  function csvCell(v) {
+    var s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function exportCSV() {
+    var r = window.__lastResults, m = MODE[r.mode], lines = [];
+    lines.push(['Section', 'Name', 'Result', 'Payments', m.amountLabel, 'Last payment'].map(csvCell).join(','));
+    r.rows.forEach(function (row) {
+      lines.push(['On list', row.name, RESULT_LABEL[row.result] + (row.duplicate ? ' (duplicate)' : ''),
+        row.items.length, row.total.toFixed(2), row.last || ''].map(csvCell).join(','));
+      row.items.forEach(function (c) {
+        lines.push(['  receipt', c.receipt, c.name || '', '', c.amount.toFixed(2), ''].map(csvCell).join(','));
+      });
+    });
+    r.notOnList.forEach(function (g) {
+      lines.push(['Not on list', g.label, '', g.count, g.total.toFixed(2), g.last || ''].map(csvCell).join(','));
+    });
+    var blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = 'mpesa-check-' + r.mode + '.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  // Save a stand-alone copy of this app as a file the user can open offline.
+  function downloadApp() {
+    var btn = $("#downloadBtn");
+    var blob = new Blob([ORIGINAL_DOC], { type: 'text/html;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'mpesa-statement-checker.html';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    if (btn) {
+      btn.textContent = 'Downloaded';
+      setTimeout(function () { btn.textContent = 'Download app'; }, 2000);
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Status
+   * ------------------------------------------------------------------ */
+  function setStatus(kind, msg, busy) {
+    var el = $("#status");
+    el.className = 'status show ' + kind;
+    el.innerHTML = (busy ? '<span class="spinner" aria-hidden="true"></span>' : '') + '<span>' + esc(msg) + '</span>';
+  }
+  function clearStatus() { var el = $("#status"); el.className = 'status'; el.innerHTML = ''; }
+
+  /* ------------------------------------------------------------------ *
+   * Autocomplete
+   * ------------------------------------------------------------------ */
+  var suggestIndex = -1, suggestItems = [];
+
+  function suggestionPool() {
+    var txns = window.__txns || [], seen = {}, out = [];
+    var mode = currentMode();
+    txns.forEach(function (t) {
+      if (t.excluded) return;
+      var label = mode === 'float' ? t.recipient : (t.tillName || '');
+      if (!label) return;
+      var key = label.toUpperCase();
+      if (seen[key]) return;
+      seen[key] = 1;
+      out.push(label);
+    });
+    return out;
+  }
+
+  function updateComboHint() {
+    if (!window.__txns || !window.__txns.length) {
+      $("#comboHint").textContent = 'Read the statement first, then one name is enough — pick the full name from the suggestions.';
+      return;
+    }
+    var pool = suggestionPool();
+    var mode = currentMode();
+    $("#comboHint").textContent = pool.length
+      ? 'Type one name to find it. ' + pool.length + ' name' + (pool.length === 1 ? '' : 's') +
+        ' found in the ' + (mode === 'float' ? 'Send Money' : 'till') + ' rows — pick one to add the full name.'
+      : (mode === 'float'
+          ? 'No Send Money recipient names were found for the current statement.'
+          : 'No till names were found. Try Check Float.');
+  }
+
+  function closeCombo() {
+    var list = $("#suggestList");
+    list.hidden = true; list.innerHTML = '';
+    $("#quickAdd").setAttribute('aria-expanded', 'false');
+    suggestIndex = -1; suggestItems = [];
+  }
+
+  function openCombo(query) {
+    var q = normWords(query);
+    if (!q.length) { closeCombo(); return; }
+    var pool = suggestionPool();
+    var matches = pool.filter(function (label) {
+      var words = normWords(label);
+      for (var i = 0; i < q.length; i++) if (words.indexOf(q[i]) < 0) return false;
+      return true;
+    }).slice(0, 8);
+
+    suggestItems = matches;
+    var list = $("#suggestList");
+    if (!matches.length) { closeCombo(); return; }
+    list.innerHTML = matches.map(function (label, i) {
+      return '<li role="option" aria-selected="false"><button type="button" data-i="' + i + '">' +
+        esc(label) + '</button></li>';
+    }).join('');
+    list.hidden = false;
+    $("#quickAdd").setAttribute('aria-expanded', 'true');
+    suggestIndex = -1;
+  }
+
+  function highlightSuggest() {
+    var btns = $("#suggestList").querySelectorAll('button');
+    btns.forEach(function (b, i) {
+      b.classList.toggle('active', i === suggestIndex);
+      b.setAttribute('aria-selected', i === suggestIndex ? 'true' : 'false');
+    });
+  }
+
+  function addName(label) {
+    var ta = $("#namesInput");
+    var val = ta.value.replace(/\s+$/, '');
+    ta.value = (val ? val + '\n' : '') + label;
+    $("#quickAdd").value = '';
+    closeCombo();
+    ta.focus();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Amount search
+   * ------------------------------------------------------------------ */
+  function parseAmountQuery(s) {
+    s = String(s || '').replace(/[,\s]/g, '').toLowerCase();
+    if (!s) return null;
+    var m, v;
+    if ((m = s.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)$/))) return { min: +m[1], max: +m[2] };
+    if ((m = s.match(/^>=\s*(\d+(?:\.\d+)?)$/))) return { min: +m[1], max: Infinity };
+    if ((m = s.match(/^>\s*(\d+(?:\.\d+)?)$/))) return { min: +m[1] + 0.001, max: Infinity };
+    if ((m = s.match(/^<=\s*(\d+(?:\.\d+)?)$/))) return { min: -Infinity, max: +m[1] };
+    if ((m = s.match(/^<\s*(\d+(?:\.\d+)?)$/))) return { min: -Infinity, max: +m[1] - 0.001 };
+    if ((m = s.match(/^(\d+(?:\.\d+)?)\+$/))) return { min: +m[1], max: Infinity };
+    v = parseFloat(s);
+    if (!isNaN(v)) return { min: v, max: v };
+    return null;
+  }
+
+  function updateAmountLabel() {
+    var el = $("#amountColLabel");
+    if (el) el.textContent = MODE[currentMode()].col;
+  }
+
+  function renderAmountSearch() {
+    var box = $("#amountResults"), st = $("#amountStatus");
+    var raw = $("#amountSearch").value.trim();
+    if (!raw) { box.hidden = true; box.innerHTML = ''; st.textContent = ''; return; }
+    var q = parseAmountQuery(raw);
+    if (!q) {
+      box.hidden = true; box.innerHTML = '';
+      st.textContent = 'Enter a number, a range like 1000-2000, or a minimum like 1500+.';
+      return;
+    }
+
+    var mode = currentMode(), m = MODE[mode];
+    var cands = buildCandidates(window.__txns || [], mode).filter(function (c) {
+      return c.amount >= q.min - 0.001 && c.amount <= q.max + 0.001;
+    });
+    cands.sort(function (a, b) { return a.dateISO < b.dateISO ? 1 : -1; });
+    var total = cands.reduce(function (a, c) { return a + c.amount; }, 0);
+
+    st.textContent = cands.length
+      ? cands.length + ' transaction' + (cands.length === 1 ? '' : 's') + ' found. Total ' + fmtKES(total) + '.'
+      : 'No ' + m.col.toLowerCase() + ' transactions match that amount.';
+
+    if (!cands.length) { box.hidden = true; box.innerHTML = ''; return; }
+    var rows = cands.map(function (c) {
+      return '<tr><td>' + esc(c.receipt) + '</td><td>' + esc(c.name || '—') + '</td>' +
+        '<td class="num">' + c.amount.toFixed(2) + '</td>' +
+        '<td>' + (c.dateDisplay ? esc(c.dateDisplay) : '<span class="muted">—</span>') + '</td></tr>';
+    }).join('');
+    box.hidden = false;
+    box.innerHTML = '<div class="table-scroll"><table>' +
+      '<thead><tr><th>Receipt No.</th><th>Details</th><th class="num">' + esc(m.col) + '</th><th>Date</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td colspan="2">Total</td><td class="num">' + total.toFixed(2) + '</td><td></td></tr></tfoot>' +
+      '</table></div>';
+  }
+
+  async function runAmountSearch() {
+    var raw = $("#amountSearch").value.trim();
+    if (!raw) { $("#amountStatus").textContent = 'Type an amount to search.'; return; }
+    try {
+      if (!window.__txns || !window.__txns.length) {
+        setStatus('busy', 'Reading statement…', true);
+        await doRead(false);
+        clearStatus();
+      }
+      renderAmountSearch();
+    } catch (err) {
+      setStatus('error', (err && err.message) ? err.message : 'Could not read the statement.');
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Read + check
+   * ------------------------------------------------------------------ */
+  async function doRead(showStatus) {
+    if (showStatus) setStatus('busy', 'Reading statement…', true);
+    await tick(20);
+    var txns = await readStatement();
+    if (!txns.length) throw new Error(emptyStatementError());
+
+    window.__txns = txns;
+    var s = suggestionText(txns);
+    document.querySelector('input[name="mode"][value="' + s.mode + '"]').checked = true;
+    $("#modeSuggest").innerHTML = s.text;
+
+    var floats = 0, tills = 0;
+    txns.forEach(function (t) {
+      if (t.excluded) return;
+      if (t.isFloat) floats++;
+      if (t.isTill) tills++;
+    });
+    var ignored = txns.filter(function (t) { return t.excluded; }).length;
+    $("#readout").hidden = false;
+    $("#readout").innerHTML =
+      '<span class="chip">Read</span> <strong>' + txns.length + '</strong> transactions · ' +
+      '<strong>' + floats + '</strong> float (Send Money) · <strong>' + tills + '</strong> till' +
+      (ignored ? ' · ' + ignored + ' ignored (failed or charges)' : '') + '.';
+
+    updateComboHint();
+    updateAmountLabel();
+    renderAmountSearch();
+    return txns;
+  }
+
+  async function readOnly() {
+    try {
+      await doRead(true);
+      setStatus('info', 'Statement read. Choose Check Float or Check Till, then add names and check.');
+    } catch (err) {
+      setStatus('error', (err && err.message) ? err.message : 'Something went wrong while reading the statement.');
+    }
+  }
+
+  async function run() {
+    var runBtn = $("#runBtn");
+    $("#results").hidden = true;
+    runBtn.disabled = true;
+
+    try {
+      var names = parseNames($("#namesInput").value);
+      if (!names.length) throw new Error('Enter at least one name to check.');
+
+      setStatus('busy', 'Reading statement…', true);
+      await tick(20);
+      var txns = window.__txns && window.__txns.length ? window.__txns : await readStatement();
+      if (!txns.length) throw new Error(emptyStatementError());
+      window.__txns = txns;
+
+      var modeKey = currentMode();
+      var candidates = buildCandidates(txns, modeKey);
+
+      var from = $("#dateFrom").value, to = $("#dateTo").value;
+      var min = parseFloat($("#minAmount").value);
+      var filtered = candidates.filter(function (c) {
+        if (from && (!c.dateISO || c.dateISO < from)) return false;
+        if (to && (!c.dateISO || c.dateISO > to)) return false;
+        if (!isNaN(min) && c.amount < min) return false;
+        return true;
+      });
+
+      setStatus('busy', 'Matching names…', true);
+      await tick(20);
+
+      window.__lastTxns = txns;
+      window.__lastResults = analyze(names, filtered, txns.length, modeKey);
+      render(window.__lastResults);
+      setStatus('info', 'Done. ' + filtered.length + ' row' + (filtered.length === 1 ? '' : 's') +
+        ' counted for ' + MODE[modeKey].label.toLowerCase() + '.');
+    } catch (err) {
+      setStatus('error', (err && err.message) ? err.message : 'Something went wrong while reading the statement.');
+    } finally {
+      runBtn.disabled = false;
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Theme
+   * ------------------------------------------------------------------ */
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    var btn = $("#themeBtn");
+    btn.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
+    btn.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+  }
+  function initTheme() {
+    var saved = null;
+    try { saved = localStorage.getItem('mpesa-checker-theme'); } catch (e) { saved = null; }
+    if (!saved) {
+      saved = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    }
+    applyTheme(saved);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Wiring
+   * ------------------------------------------------------------------ */
+  function showFileName(name) {
+    var el = $("#fileName");
+    if (!name) { el.hidden = true; el.textContent = ''; return; }
+    el.hidden = false;
+    el.textContent = 'Selected: ' + name;
+  }
+
+  function resetAll() {
+    $("#fileInput").value = '';
+    showFileName('');
+    $("#pasteText").value = '';
+    $("#namesInput").value = '';
+    $("#importNamesHint").textContent = '';
+    $("#quickAdd").value = '';
+    $("#pwInput").value = '';
+    $("#dateFrom").value = '';
+    $("#dateTo").value = '';
+    $("#minAmount").value = '';
+    $("#readout").hidden = true;
+    $("#readout").innerHTML = '';
+    $("#modeSuggest").textContent = '';
+    $("#amountSearch").value = '';
+    $("#amountResults").hidden = true;
+    $("#amountResults").innerHTML = '';
+    $("#amountStatus").textContent = '';
+    $("#results").hidden = true;
+    $("#copyHint").textContent = '';
+    window.__txns = null; window.__lastResults = null; window.__lastTxns = null;
+    closeCombo();
+    updateComboHint();
+    clearStatus();
+  }
+
+  function init() {
+    initTheme();
+    $("#importNamesBtn").addEventListener('click', function () { $("#namesFile").click(); });
+    $("#namesFile").addEventListener('change', function () {
+      handleNamesFile(this);
+      this.value = '';
+    });
+    $("#downloadBtn").addEventListener('click', downloadApp);
+    $("#themeBtn").addEventListener('click', function () {
+      var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+      try { localStorage.setItem('mpesa-checker-theme', next); } catch (e) { /* ignore */ }
+    });
+
+    var drop = $("#drop"), fileInput = $("#fileInput");
+    drop.addEventListener('click', function () { fileInput.click(); });
+    drop.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+    });
+    ["dragenter", "dragover"].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); });
+    });
+    ["dragleave", "drop"].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); });
+    });
+    drop.addEventListener('drop', function (e) {
+      var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) { fileInput.files = e.dataTransfer.files; showFileName(f.name); }
+    });
+    fileInput.addEventListener('change', function () {
+      var f = fileInput.files && fileInput.files[0];
+      showFileName(f ? f.name : '');
+    });
+
+    $("#pwToggle").addEventListener('click', function () {
+      var inp = $("#pwInput"), btn = $("#pwToggle");
+      var showing = inp.type === 'text';
+      inp.type = showing ? 'password' : 'text';
+      btn.textContent = showing ? 'Show' : 'Hide';
+      btn.setAttribute('aria-pressed', showing ? 'false' : 'true');
+      btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+    });
+
+    $("#readBtn").addEventListener('click', readOnly);
+    $("#runBtn").addEventListener('click', run);
+
+    document.querySelectorAll('input[name="mode"]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        closeCombo();
+        updateComboHint();
+        updateAmountLabel();
+        renderAmountSearch();
+        $("#modeSuggest").innerHTML = '';
+      });
+    });
+
+    $("#amountBtn").addEventListener('click', runAmountSearch);
+    $("#amountSearch").addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); runAmountSearch(); }
+    });
+    $("#amountSearch").addEventListener('input', function () {
+      if (window.__txns && window.__txns.length) renderAmountSearch();
+    });
+    updateAmountLabel();
+
+    var quick = $("#quickAdd");
+    quick.addEventListener('input', function () { openCombo(quick.value); });
+    quick.addEventListener('focus', function () { openCombo(quick.value); });
+    quick.addEventListener('keydown', function (e) {
+      var list = $("#suggestList");
+      if (list.hidden) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); suggestIndex = Math.min(suggestIndex + 1, suggestItems.length - 1); highlightSuggest(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); suggestIndex = Math.max(suggestIndex - 1, 0); highlightSuggest(); }
+      else if (e.key === 'Enter') {
+        e.preventDefault();
+        addName(suggestItems[suggestIndex >= 0 ? suggestIndex : 0]);
+      } else if (e.key === 'Escape') { closeCombo(); }
+    });
+    $("#suggestList").addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-i]');
+      if (btn) addName(suggestItems[+btn.getAttribute('data-i')]);
+    });
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest('.combo')) closeCombo();
+    });
+
+    $("#sampleBtn").addEventListener('click', function () {
+      $("#pasteText").value = SAMPLE_STATEMENT;
+      $("#namesInput").value = SAMPLE_NAMES;
+      $("#fileInput").value = '';
+      showFileName('');
+      $("#pwInput").value = '';
+      $("#dateFrom").value = '';
+      $("#dateTo").value = '';
+      $("#minAmount").value = '';
+      readOnly().then(run);
+    });
+    $("#resetBtn").addEventListener('click', resetAll);
+    $("#copyBtn").addEventListener('click', copyResults);
+    $("#csvBtn").addEventListener('click', exportCSV);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+</body>
+</html>
