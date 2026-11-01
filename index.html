@@ -1031,11 +1031,14 @@
       if (t.excluded) continue;
       var isFloat = modeKey === 'float';
       if (isFloat ? !t.isFloat : !t.isTill) continue;
-      var label = isFloat ? t.recipient : (t.tillName || t.details);
+      // Details must show ONLY the person's name (the sender). Never fall back
+      // to the raw statement text; when no name can be read, leave it blank so
+      // the row is still listed (and flagged) without leaking the raw details.
+      var label = ((isFloat ? t.recipient : (t.tillName || t.recipient)) || '').trim();
       out.push({
         txn: t,
         receipt: t.receipt,
-        matchText: isFloat ? t.recipient : (t.tillName || t.details),
+        matchText: label,
         name: label,
         amount: Math.abs(isFloat ? t.withdrawn : t.paidIn),
         dateISO: t.dateISO,
@@ -1117,9 +1120,10 @@
       if (fullUsage[cd.receipt]) continue;
       var label = cd.name || 'Unknown';
       var gk = label.toUpperCase();
-      if (!groups[gk]) groups[gk] = { label: label, count: 0, total: 0, last: '' };
+      if (!groups[gk]) groups[gk] = { label: label, count: 0, total: 0, last: '', items: [] };
       groups[gk].count++;
       groups[gk].total += cd.amount;
+      groups[gk].items.push(cd);
       if (cd.dateISO > groups[gk].last) groups[gk].last = cd.dateISO;
     }
     var notOnList = Object.keys(groups).map(function (k) { return groups[k]; });
@@ -1133,6 +1137,42 @@
    * Rendering
    * ------------------------------------------------------------------ */
   var RESULT_LABEL = { confirmed: 'Confirmed', check: 'Check', notfound: 'Not found' };
+
+  // A sender who paid in more than twice (3+ rows) gets the total and the
+  // individual amounts shown straight away in the Check Till report; smaller
+  // groups stay behind the expander arrow.
+  var EXPAND_AFTER = 2;
+
+  function detailTableHTML(items, total, colLabel) {
+    var list = items.slice().sort(function (a, b) { return a.dateISO < b.dateISO ? 1 : -1; });
+    var body = list.map(function (c) {
+      return '<tr><td>' + esc(c.receipt) + '</td><td>' + esc(c.name || '—') + '</td>' +
+             '<td class="num">' + (Number(c.amount) || 0).toFixed(2) + '</td></tr>';
+    }).join('');
+    return '<div class="detail-inner"><div class="table-scroll"><table>' +
+      '<thead><tr><th>Receipt No.</th><th>Details</th><th class="num">' + esc(colLabel) + '</th></tr></thead>' +
+      '<tbody>' + body + '</tbody>' +
+      '<tfoot><tr><td colspan="2">Total ' + esc(colLabel.toLowerCase()) + '</td>' +
+      '<td class="num">' + total.toFixed(2) + '</td></tr></tfoot>' +
+      '</table></div></div>';
+  }
+
+  function expanderCell(uid, autoOpen) {
+    return '<button type="button" class="expander" aria-expanded="' + (autoOpen ? 'true' : 'false') +
+      '" aria-controls="' + uid + '">' + (autoOpen ? '&#9662;' : '&#9656;') + '</button>';
+  }
+
+  function wireExpanders(root) {
+    root.querySelectorAll('.expander[aria-controls]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var target = document.getElementById(btn.getAttribute('aria-controls'));
+        var open = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+        target.hidden = open;
+        btn.innerHTML = open ? '&#9656;' : '&#9662;';
+      });
+    });
+  }
 
   function currentMode() {
     var el = document.querySelector('input[name="mode"]:checked');
@@ -1164,16 +1204,19 @@
       $("#table1Empty").hidden = false;
     } else {
       $("#table1Empty").hidden = true;
+      var tillBreakdown = m.key === 'till';
       var frag = document.createDocumentFragment();
       rows.forEach(function (r) {
         var tr = document.createElement('tr');
         var badge = '<span class="badge ' + r.result + '">' + RESULT_LABEL[r.result] + '</span>';
         var dup = r.duplicate ? '<span class="badge dup">Possible duplicate</span>' : '';
         var expandable = r.items.length > 0;
+        var uid = 'det-' + r.index;
+        var autoOpen = expandable && tillBreakdown && r.items.length > EXPAND_AFTER;
         tr.innerHTML =
           '<td class="name-cell">' +
             (expandable
-              ? '<button type="button" class="expander" aria-expanded="false" aria-controls="det-' + r.index + '">&#9656;</button>'
+              ? expanderCell(uid, autoOpen)
               : '<span class="expander" aria-hidden="true" style="visibility:hidden">&#9656;</span>') +
             '<span>' + esc(r.name) + '</span></td>' +
           '<td>' + badge + dup + '</td>' +
@@ -1185,33 +1228,14 @@
         if (expandable) {
           var dtr = document.createElement('tr');
           dtr.className = 'detail-tr';
-          dtr.id = 'det-' + r.index;
-          dtr.hidden = true;
-          var list = r.items.slice().sort(function (a, b) { return a.dateISO < b.dateISO ? 1 : -1; });
-          var body = list.map(function (c) {
-            return '<tr><td>' + esc(c.receipt) + '</td><td>' + esc(c.name || '—') + '</td>' +
-                   '<td class="num">' + (Number(c.amount) || 0).toFixed(2) + '</td></tr>';
-          }).join('');
-          dtr.innerHTML = '<td colspan="5"><div class="detail-inner"><div class="table-scroll"><table>' +
-            '<thead><tr><th>Receipt No.</th><th>Details</th><th class="num">' + esc(m.col) + '</th></tr></thead>' +
-            '<tbody>' + body + '</tbody>' +
-            '<tfoot><tr><td colspan="2">Total ' + esc(m.col.toLowerCase()) + '</td>' +
-            '<td class="num">' + r.total.toFixed(2) + '</td></tr></tfoot>' +
-            '</table></div></div></td>';
+          dtr.id = uid;
+          dtr.hidden = !autoOpen;
+          dtr.innerHTML = '<td colspan="5">' + detailTableHTML(r.items, r.total, m.col) + '</td>';
           frag.appendChild(dtr);
         }
       });
       tb1.appendChild(frag);
-
-      tb1.querySelectorAll('.expander[aria-controls]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          var target = document.getElementById(btn.getAttribute('aria-controls'));
-          var open = btn.getAttribute('aria-expanded') === 'true';
-          btn.setAttribute('aria-expanded', open ? 'false' : 'true');
-          target.hidden = open;
-          btn.innerHTML = open ? '&#9656;' : '&#9662;';
-        });
-      });
+      wireExpanders(tb1);
     }
 
     // Table 2
@@ -1221,15 +1245,35 @@
       $("#table2Empty").hidden = false;
     } else {
       $("#table2Empty").hidden = true;
+      var tillBreakdown2 = m.key === 'till';
       var frag2 = document.createDocumentFragment();
-      notOnList.forEach(function (g) {
+      notOnList.forEach(function (g, gi) {
         var tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + esc(g.label) + '</td><td class="num">' + g.count + '</td>' +
+        var expandable2 = g.items && g.items.length > 0;
+        var uid2 = 'det2-' + gi;
+        var autoOpen2 = expandable2 && tillBreakdown2 && g.count > EXPAND_AFTER;
+        tr.innerHTML =
+          '<td class="name-cell">' +
+            (expandable2
+              ? expanderCell(uid2, autoOpen2)
+              : '<span class="expander" aria-hidden="true" style="visibility:hidden">&#9656;</span>') +
+            '<span>' + esc(g.label) + '</span></td>' +
+          '<td class="num">' + g.count + '</td>' +
           '<td class="num">' + fmtKES(g.total) + '</td>' +
           '<td>' + (g.last ? esc(g.last) : '<span class="muted">—</span>') + '</td>';
         frag2.appendChild(tr);
+
+        if (expandable2) {
+          var dtr2 = document.createElement('tr');
+          dtr2.className = 'detail-tr';
+          dtr2.id = uid2;
+          dtr2.hidden = !autoOpen2;
+          dtr2.innerHTML = '<td colspan="4">' + detailTableHTML(g.items, g.total, m.col) + '</td>';
+          frag2.appendChild(dtr2);
+        }
       });
       tb2.appendChild(frag2);
+      wireExpanders(tb2);
     }
 
     var ignored = window.__lastTxns.filter(function (t) { return t.excluded; }).length;
@@ -1264,6 +1308,9 @@
     L.push(['Name', 'Payments', m.amountLabel, 'Last payment'].join('\t'));
     results.notOnList.forEach(function (g) {
       L.push([g.label, g.count, g.total.toFixed(2), g.last || ''].join('\t'));
+      (g.items || []).slice().sort(function (a, b) { return a.dateISO < b.dateISO ? 1 : -1; }).forEach(function (c) {
+        L.push(['    ' + c.receipt, c.name || '', c.amount.toFixed(2), ''].join('\t'));
+      });
     });
     L.push('');
     L.push(['Transactions read', results.transactionsRead].join('\t'));
@@ -1304,6 +1351,9 @@
     });
     r.notOnList.forEach(function (g) {
       lines.push(['Not on list', g.label, '', g.count, g.total.toFixed(2), g.last || ''].map(csvCell).join(','));
+      (g.items || []).slice().sort(function (a, b) { return a.dateISO < b.dateISO ? 1 : -1; }).forEach(function (c) {
+        lines.push(['  receipt', c.receipt, c.name || '', '', c.amount.toFixed(2), ''].map(csvCell).join(','));
+      });
     });
     var blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
     var url = URL.createObjectURL(blob), a = document.createElement('a');
