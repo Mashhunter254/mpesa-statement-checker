@@ -424,6 +424,16 @@
   var STATUS_CAPTURE_RE = new RegExp('\\b(' + STATUS_WORDS.join('|') + ')\\b', 'i');
   var STATUS_RE = new RegExp('\\b(' + STATUS_WORDS.join('|') + ')\\b', 'ig');
 
+  // Rows that belong to the "Check Till" side: money moved through a paybill,
+  // till or merchant/business account. "Merchant Payment Online from -
+  // 0791***824 STALLON WALIAULA" is a customer paying a till, so it is a till
+  // row — the counterparty name follows the masked number.
+  var TILL_RE = /\bpay\s?bill\b|\bbuy\s+goods\b|\btill\b|\bmerchant\b|\bbusiness\s+payment\b|\bsmall\s+business\b|\bpochi\b|\bm-?pesa\s+global\b/i;
+
+  // Masked ("0791***824") and plain ("254712345678") numbers in the details.
+  var MASKED_PHONE_RE = /\b\d{2,6}\*{2,}\d{2,6}\b/;
+  var PLAIN_PHONE_RE = /\b(?:254|0)\d{8}\b/;
+
   // A transaction row starts with a 10-character receipt (A-Z0-9). The
   // completion time normally follows, but we match the two independently so a
   // slightly different date/time format, or a missing time, does not lose the
@@ -474,6 +484,8 @@
     'QJD12ABC3J   2024-05-10 12:00:00    Customer Transfer to - 254701****555 MARY AKINYI KAMAU COMPLETED          0.00     -600.00   1587.00',
     'QJD12ABC3K   2024-05-11 09:15:00    Pay Bill Online to 123456 - SAMPLE SHOP          COMPLETED          500.00       0.00   2087.00',
     'QJD12ABC3L   2024-05-12 14:30:00    Buy Goods and Services from 123456 - SAMPLE SHOP COMPLETED          350.00       0.00   2437.00',
+    'QJD12ABC3M   2024-05-13 10:05:00    Merchant Payment Online from - 0791***824 STALLON COMPLETED           700.00       0.00   3137.00',
+    '                                     WALIAULA',
     '',
     'Total: 9 transactions'
   ].join('\n');
@@ -484,7 +496,8 @@
     'MARY AKINYI KAMAUX',
     'JOHN OTIENO',
     'JANE WANJIKU, 2300',
-    'SAMPLE SHOP, 850'
+    'SAMPLE SHOP, 850',
+    'STALLON WALIAULA, 700'
   ].join('\n');
 
   /* ------------------------------------------------------------------ *
@@ -529,21 +542,50 @@
   /* ------------------------------------------------------------------ *
    * Transaction model
    * ------------------------------------------------------------------ */
-  function extractRecipient(details) {
-    var m = details.match(/\b\d{3,}\*+\d+\b/) || details.match(/\b(?:254|0)\d{8,}\b/);
-    if (!m) return '';
-    return details.slice(m.index + m[0].length).replace(/^[\s\-–—:]+/, '').trim();
+  // Trim a counterparty name out of the tail of a details string: drop status
+  // words, leftover masking characters, stray reference numbers and punctuation.
+  function cleanPartyName(s) {
+    return String(s || '')
+      .replace(STATUS_RE, ' ')
+      .replace(/[*#]+/g, ' ')
+      .replace(/^[\s\-–—:.,;]+/, '')
+      .replace(/[\s\-–—:.,;]+$/, '')
+      .replace(/\s\b\d{5,}\b\s*$/, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
+
+  function extractRecipient(details) {
+    var s = String(details || '');
+    var m = s.match(MASKED_PHONE_RE) || s.match(PLAIN_PHONE_RE);
+    if (!m) return '';
+    return cleanPartyName(s.slice(m.index + m[0].length));
+  }
+
   function extractTillName(details) {
-    var m = details.match(/\b(?:to|from)\s+(\d{4,})\s*[-–—]?\s*(.+)$/i);
+    var s = String(details || '');
+
+    // Merchant / business payments name the payer after their masked number:
+    // "Merchant Payment Online from - 0791***824 STALLON WALIAULA".
+    var masked = s.match(MASKED_PHONE_RE);
+    if (masked) {
+      var afterPhone = cleanPartyName(s.slice(masked.index + masked[0].length));
+      if (afterPhone) return afterPhone;
+    }
+
+    // Till / paybill numbers name the merchant after "to"/"from":
+    // "Pay Bill Online to 123456 - SAMPLE SHOP".
+    var m = s.match(/\b(?:to|from)\b[\s\-–—:]*(\d{4,})\s*[-–—:]?\s*(.+)$/i);
     if (m) {
-      var tail = m[2]
-        .replace(/\b\d{4,}\b/g, ' ')
-        .replace(/^\s*[-–—:.]+\s*/, '')
-        .replace(/\s+/g, ' ').trim();
-      // drop a trailing account number if the name is followed by one
-      tail = tail.replace(/\s+\d{5,}$/, '').trim();
+      var tail = cleanPartyName(m[2].replace(/\b\d{4,}\b/g, ' '));
       if (tail) return tail;
+    }
+
+    // Plain-number form: "Buy Goods and Services from 254712345678 SAMPLE SHOP".
+    var plain = s.match(PLAIN_PHONE_RE);
+    if (plain) {
+      var afterPlain = cleanPartyName(s.slice(plain.index + plain[0].length));
+      if (afterPlain) return afterPlain;
     }
     return '';
   }
@@ -595,8 +637,9 @@
     t.tillName = extractTillName(t.details);
 
     t.isFloat = /customer transfer to|send money|sent to|transfer to/i.test(t.details) && !!t.recipient;
-    t.isTill = /pay\s?bill|buy goods|till/i.test(t.details)
-      || /pay\s?bill|buy goods|till/i.test(t.recipient || '');
+    t.isTill = TILL_RE.test(t.details)
+      || TILL_RE.test(t.recipient || '')
+      || TILL_RE.test(t.tillName || '');
 
     if (/charge/i.test(t.details)) t.excluded = 'charge';
     else if (/FAILED|CANCELLED/i.test(t.status)) t.excluded = 'status';
