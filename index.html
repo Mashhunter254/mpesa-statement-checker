@@ -590,48 +590,123 @@
     return '';
   }
 
-  function makeTxn(receipt, time, rest) {
-    rest = String(rest || '').trim();
-    var matches = [], re = /-?\d[\d,]*\.\d{2}/g, m;
-    while ((m = re.exec(rest)) !== null) matches.push({ str: m[0], index: m.index });
+  // Money values as they appear in the Paid In / Withdrawn / Balance columns.
+  // They may be printed with or without decimals and with thousands separators.
+  function moneyTokens(s) {
+    var out = [], re = /-?\d[\d,]*(?:\.\d{1,2})?(?!\d)/g, m;
+    while ((m = re.exec(String(s || ''))) !== null) {
+      var v = parseFloat(m[0].replace(/,/g, ''));
+      if (!isNaN(v)) out.push(v);
+    }
+    return out;
+  }
 
-    var details = rest, paidIn = 0, withdrawn = 0, balance = 0;
-    if (matches.length >= 3) {
-      var a = matches[matches.length - 3], b = matches[matches.length - 2], c = matches[matches.length - 1];
-      details = rest.slice(0, a.index);
-      paidIn = num(a.str); withdrawn = num(b.str); balance = num(c.str);
-    } else if (matches.length === 2) {
-      details = rest.slice(0, matches[0].index);
-      withdrawn = num(matches[0].str); balance = num(matches[1].str);
-    } else if (matches.length === 1) {
-      details = rest.slice(0, matches[0].index);
-      withdrawn = num(matches[0].str);
+  // Rows whose money comes in. Everything else counts as money out.
+  var MONEY_IN_RE = /\bfrom\b|\breceived\b|\bdeposit(?:ed)?\b|\bmerchant\s+payment\b/i;
+
+  // Place the values into the Paid In / Withdrawn / Balance columns. Statements
+  // always show the three columns in that order, but a column may be blank or
+  // printed without decimals, so 1-3 values can turn up.
+  function assignAmounts(vals, incoming) {
+    if (vals.length >= 3) {
+      return { paidIn: vals[vals.length - 3], withdrawn: vals[vals.length - 2], balance: vals[vals.length - 1] };
+    }
+    if (vals.length === 2) {
+      var amt = vals[0];
+      return amt < 0 || !incoming
+        ? { paidIn: 0, withdrawn: amt, balance: vals[1] }
+        : { paidIn: amt, withdrawn: 0, balance: vals[1] };
+    }
+    if (vals.length === 1) {
+      var one = vals[0];
+      return one < 0 || !incoming
+        ? { paidIn: 0, withdrawn: one, balance: 0 }
+        : { paidIn: one, withdrawn: 0, balance: 0 };
+    }
+    return { paidIn: 0, withdrawn: 0, balance: 0 };
+  }
+
+  // Read the money columns out of a transaction row, and report where the
+  // details end so the caller can cut them off.
+  function readAmounts(text) {
+    var dec = [], re = /-?\d[\d,]*\.\d{2}/g, m;
+    while ((m = re.exec(text)) !== null) dec.push({ v: num(m[0]), at: m.index });
+
+    // Three (or more) plain 2-decimal values: the last three are the columns.
+    if (dec.length >= 3) {
+      var a = dec[dec.length - 3], b = dec[dec.length - 2], c = dec[dec.length - 1];
+      return { paidIn: a.v, withdrawn: b.v, balance: c.v, cut: a.at };
     }
 
-    var st = rest.match(STATUS_CAPTURE_RE);
-    var status = st ? st[1].toUpperCase() : '';
-    details = details.replace(STATUS_RE, ' ').replace(/\s*-\s*$/, '').replace(/\s+/g, ' ').trim();
+    // Otherwise the columns sit between the status word and the end of the row,
+    // so read that region positionally instead of guessing from the right.
+    var st = text.match(STATUS_CAPTURE_RE);
+    if (st) {
+      var head = text.slice(0, st.index);
+      var vals = moneyTokens(text.slice(st.index + st[0].length));
+      var amt = assignAmounts(vals, MONEY_IN_RE.test(head));
+      amt.cut = vals.length ? st.index : text.length;
+      return amt;
+    }
 
+    if (dec.length === 2) return { paidIn: 0, withdrawn: dec[0].v, balance: dec[1].v, cut: dec[0].at };
+    if (dec.length === 1) return { paidIn: 0, withdrawn: dec[0].v, balance: 0, cut: dec[0].at };
+    return { paidIn: 0, withdrawn: 0, balance: 0, cut: text.length };
+  }
+
+  // Some statements print the money columns on their own wrapped lines, so they
+  // end up joined onto the details. Pull a trailing run of money values back
+  // into the columns, and return the details without them.
+  function recoverTrailingAmounts(t, details) {
+    var m = details.match(/((?:\s-?\d[\d,]*(?:\.\d{1,2})?){1,3})\s*$/);
+    if (!m) return details;
+    var parts = m[1].trim().split(/\s+/);
+    // Require at least one value with decimals, so a trailing reference number
+    // is never mistaken for an amount.
+    if (!parts.some(function (p) { return p.indexOf('.') >= 0; })) return details;
+    var vals = parts.map(function (p) { return parseFloat(p.replace(/,/g, '')); });
+    if (vals.some(isNaN)) return details;
+    var amt = assignAmounts(vals, MONEY_IN_RE.test(details.slice(0, m.index)));
+    t.paidIn = amt.paidIn; t.withdrawn = amt.withdrawn; t.balance = amt.balance;
+    return details.slice(0, m.index);
+  }
+
+  function makeTxn(receipt, time, rest) {
     return {
       receipt: receipt, time: time,
       dateISO: toISODate(time), dateDisplay: toISODate(time) || String(time || '').slice(0, 10),
-      detailsBase: details, wrapped: '',
-      status: status, paidIn: paidIn, withdrawn: withdrawn, balance: balance
+      detailsBase: String(rest || '').trim(), wrapped: '',
+      status: '', paidIn: 0, withdrawn: 0, balance: 0
     };
   }
 
   function finalizeTxn(t) {
-    t.details = (t.detailsBase + ' ' + t.wrapped).replace(/\s+/g, ' ').trim();
+    var row = (t.detailsBase + ' ' + t.wrapped).replace(/\s+/g, ' ').trim();
 
     // Recover a completion time that landed on a wrapped line.
+    var recoveredDate = false;
     if (!t.dateISO) {
-      var d = t.details.match(DATETIME_RE);
+      var d = row.match(DATETIME_RE);
       if (d) {
         t.dateISO = toISODate(d[1]);
         t.dateDisplay = t.dateISO;
-        t.details = t.details.replace(DATETIME_RE, ' ').replace(/\s+/g, ' ').trim();
+        recoveredDate = true;
       }
     }
+
+    var st = row.match(STATUS_CAPTURE_RE);
+    t.status = st ? st[1].toUpperCase() : '';
+
+    var amt = readAmounts(row);
+    t.paidIn = amt.paidIn; t.withdrawn = amt.withdrawn; t.balance = amt.balance;
+
+    // Wrapped lines continue the details (usually the rest of the name), so they
+    // are kept even when they follow the money columns.
+    var details = t.detailsBase.slice(0, readAmounts(t.detailsBase).cut) + ' ' + t.wrapped;
+    if (!amt.paidIn && !amt.withdrawn && !amt.balance) details = recoverTrailingAmounts(t, details);
+    if (recoveredDate) details = details.replace(DATETIME_RE, ' ');
+
+    t.details = details.replace(STATUS_RE, ' ').replace(/\s*-\s*$/, '').replace(/\s+/g, ' ').trim();
 
     t.recipient = extractRecipient(t.details);
     t.tillName = extractTillName(t.details);
